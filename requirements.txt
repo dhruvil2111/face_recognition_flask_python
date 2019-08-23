@@ -1,0 +1,7 @@
+Flask
+opencv-python
+opencv-contrib-python
+pickle
+imutils
+face_recognition
+imutils
