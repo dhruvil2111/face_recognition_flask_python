@@ -1,3 +1,5 @@
+from multiprocessing.pool import ThreadPool
+
 from imutils.video import VideoStream
 import face_recognition
 import argparse
@@ -5,39 +7,62 @@ import imutils
 import pickle
 import time
 import cv2
+import multiprocessing
+import threading
+
+# for cctv camera'rtsp://username:password@ip_address:554/user=username_password='password'_channel
+# =channel_number_stream=0.sdp' example of cctv or rtsp:
+# 'rtsp://mamun:123456@101.134.16.117:554/user=mamun_password=123456_channel=1_stream=0.sdp'
+
+args = {'detection_method': 'hog',
+        'display': 1,
+        # 'input' : '/home/jugal/Desktop/Face Recognition/videos/Avengers.mp4',
+        'encodings': 'encodings_international_celebrity.pickle',
+        'save_to': 'dataset/',
+        'output': None}
 
 
-#  for cctv camera'rtsp://username:password@ip_address:554/user=username_password='password'_channel=channel_number_stream=0.sdp'
-#  example of cctv or rtsp: 'rtsp://mamun:123456@101.134.16.117:554/user=mamun_password=123456_channel=1_stream=0.sdp'
-
-
-def camera_stream():
-    args = {'detection_method': 'hog',
-            'display': 1,
-            # 'input' : '/home/jugal/Desktop/Face Recognition/videos/Avengers.mp4',
-            'encodings': 'encodings_international_celebrity.pickle',
-            'save_to': 'dataset/',
-            'output': None}
-
-    # %%
-
-    # load the known faces and embeddings
+def pickle_data():
     print("Loading encodings...")
     data = pickle.loads(open(args["encodings"], "rb").read())
     # %%
+    return dict(data=data)
 
+
+def video_data():
     # initialize the video stream and pointer to output video file, then
     # allow the camera sensor to warm up
     print("Starting video stream...")
     vs = VideoStream(src=0).start()
-    writer = None
-    time.sleep(2.0)
+    # time.sleep(1.0)
+    return dict(vs=vs)
 
+
+pool = ThreadPool(processes=3)
+
+
+def camera_stream():
     # %%
 
+    # load the known faces and embeddings
+
+    # %%
+    video_async_result = pool.apply_async(video_data)  # tuple of args for foo
+
+    # do some other stuff in the main process
+
+    return_val = video_async_result.get()  # get the
+
+    pickle_async_result = pool.apply_async(pickle_data)  # tuple of args for foo
+
+    # do some other stuff in the main process
+
+    pickle_return_val = pickle_async_result.get()  # get the
+
     count = 0
+    writer = None
     while True:
-        frame = vs.read()
+        frame = return_val['vs'].read()
 
         # convert the input frame from BGR to RGB then resize it to have
         # a width of 750px (to speedup processing)
@@ -57,7 +82,7 @@ def camera_stream():
         for encoding in encodings:
             # attempt to match each face in the input image to our known
             # encodings
-            matches = face_recognition.compare_faces(data["encodings"], encoding, tolerance=0.45)
+            matches = face_recognition.compare_faces(pickle_return_val['data']["encodings"], encoding, tolerance=0.45)
             name = "Unknown"
 
             # check to see if we have found a match
@@ -71,7 +96,7 @@ def camera_stream():
                 # loop over the matched indexes and maintain a count for
                 # each recognized face face
                 for i in matchedIdxs:
-                    name = data["names"][i]
+                    name = pickle_return_val['data']["names"][i]
                     counts[name] = counts.get(name, 0) + 1
 
                 # determine the recognized face with the largest number
